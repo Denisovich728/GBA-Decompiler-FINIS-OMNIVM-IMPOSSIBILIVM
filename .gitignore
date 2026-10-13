@@ -1,0 +1,51 @@
+# =============================================================================
+# GBA-Decompiler-FINIS-OMNIVM-IMPOSSIBILIVM - .gitignore
+# =============================================================================
+
+# Third-party Ghidra distribution
+engine/
+engine/**
+
+# Commercial ROMs (Keep empty folder, ignore all contents)
+roms/*
+!roms/.gitkeep
+rooms/*
+!rooms/.gitkeep
+*.gba
+*.GBA
+*.bin
+*.BIN
+*.sav
+*.SAV
+*.rom
+*.ROM
+*.zip
+*.7z
+*.dump
+
+# Decompilation Output Directories (Keep empty folder, ignore all contents)
+output/*
+!output/.gitkeep
+
+# Ghidra Projects (Keep empty folder, ignore all contents)
+ghidra_projects/*
+!ghidra_projects/.gitkeep
+*.gpr
+*.rep/
+*.rep/**
+
+# Backups and Scratch
+*.bkp*
+*MATRIXC*.txt
+scratch/
+scratch/**
+
+# Python Cache & Bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs and OS Specific
+*.log
+.DS_Store
+Thumbs.db

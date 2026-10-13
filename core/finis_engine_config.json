@@ -1,0 +1,320 @@
+{
+  "_comment": "FIO DECOMP :: FINIS OMNIVM IMPOSSIBILIVM :: TABLA MAESTRA DE CONFIGURACION Y MOTORES",
+  "_version": "1.3",
+  "_description": "Archivo de parametros y switches para ajustar dinamicamente la arquitectura, heuristica y filtros del descompilador.",
+
+  "global_engine_settings": {
+    "engine_mode": "AUTO_DETECT",
+    "active_preset_override": "AUTO",
+    "verbose_matrix_telemetry": true,
+    "guardian_strictness_level": 2,
+    "max_decompiler_timeout_seconds": 60,
+    "max_function_loc_threshold": 3000,
+    "purge_spurious_orphans": true,
+    "lock_return_epilogues": true,
+    "initialize_bios_vectors": true,
+    "export_jump_context_json": true,
+    "export_c_header_strings": true
+  },
+
+  "engine_presets": {
+    "marvelous": {
+      "_name": "Marvelous / Victor Interactive Software (Harvest Moon FoMT / MFoMT Architecture)",
+      "_signature_matches": ["A44E", "A44P", "BFGE", "BFGP", "A44J", "FRIENDS_MINERAL", "HARVEST_MOON"],
+      "code_horizon": {
+        "mode": "CONTINUOUS_PERMISSIVE",
+        "window_size_bytes": 2048,
+        "max_scan_mb": 4,
+        "streak_tolerance_kb": 24,
+        "illegal_opcode_max_ratio": 0.05,
+        "max_text_density_ratio": 0.60,
+        "min_prologues_per_window": 2,
+        "min_returns_per_window": 1,
+        "allow_inline_literal_pools": true,
+        "inline_data_tolerance_ratio": 0.12
+      },
+      "hardware_memory": {
+        "init_bios_vectors": true,
+        "map_ewram_size_kb": 256,
+        "map_iwram_size_kb": 32,
+        "resolve_literal_pools_to_ptrs": true,
+        "scan_iwram_fast_overlays": false,
+        "custom_overlay_addresses": []
+      },
+      "asset_hunter": {
+        "enable_acoustic_firms": true,
+        "enable_entropy_filter": true,
+        "shannon_entropy_cutoff": 7.85,
+        "isolate_m4a_music_banks": true,
+        "isolate_lz77_blocks": true,
+        "isolate_huffman_blocks": true,
+        "isolate_graphics_tiles_4bpp": true,
+        "isolate_graphics_tiles_8bpp": true
+      },
+      "text_hunter": {
+        "enable_text_hunter": true,
+        "charset_mode": "ASCII_LATIN",
+        "min_string_length": 4,
+        "min_letter_count": 2,
+        "min_printable_chars": 3,
+        "vowel_heuristic_enabled": true,
+        "max_repetition_streak": 4
+      },
+      "jump_tables": {
+        "enable_hunter": true,
+        "max_cases_per_table": 512,
+        "min_cases_per_table": 2,
+        "allow_byte_offset_tables": false,
+        "allow_word_pointer_tables": true,
+        "allow_indexed_lsl2_tables": true,
+        "override_ghidra_switch_models": true
+      },
+      "decompiler_guardian": {
+        "strictness": 2,
+        "suppress_vtable_false_positives": true,
+        "filter_orphan_tail_calls": true,
+        "retain_leaf_return_epilogues": true
+      }
+    },
+
+    "game_freak": {
+      "_name": "Game Freak / Creatures Inc. (Pokemon Gen 3 Engine Architecture)",
+      "_signature_matches": ["BPEE", "BPEZ", "AXVE", "AXPE", "BPRE", "BPGE", "POKEMON_EMER", "POKEMON_RUBY", "POKEMON_SAPP", "POKEMON_FIRE", "POKEMON_LEAF"],
+      "code_horizon": {
+        "mode": "CONTINUOUS_STRICT",
+        "window_size_bytes": 2048,
+        "max_scan_mb": 4,
+        "streak_tolerance_kb": 16,
+        "illegal_opcode_max_ratio": 0.03,
+        "max_text_density_ratio": 0.60,
+        "min_prologues_per_window": 2,
+        "min_returns_per_window": 1,
+        "allow_inline_literal_pools": false,
+        "inline_data_tolerance_ratio": 0.08
+      },
+      "hardware_memory": {
+        "init_bios_vectors": true,
+        "map_ewram_size_kb": 256,
+        "map_iwram_size_kb": 32,
+        "resolve_literal_pools_to_ptrs": true,
+        "scan_iwram_fast_overlays": false,
+        "custom_overlay_addresses": []
+      },
+      "asset_hunter": {
+        "enable_acoustic_firms": true,
+        "enable_entropy_filter": true,
+        "shannon_entropy_cutoff": 7.92,
+        "isolate_m4a_music_banks": true,
+        "isolate_lz77_blocks": true,
+        "isolate_huffman_blocks": true,
+        "isolate_graphics_tiles_4bpp": true,
+        "isolate_graphics_tiles_8bpp": true
+      },
+      "text_hunter": {
+        "enable_text_hunter": true,
+        "charset_mode": "POKEMON_GEN3",
+        "min_string_length": 3,
+        "min_letter_count": 2,
+        "min_printable_chars": 3,
+        "vowel_heuristic_enabled": true,
+        "max_repetition_streak": 4
+      },
+      "jump_tables": {
+        "enable_hunter": true,
+        "max_cases_per_table": 1024,
+        "min_cases_per_table": 2,
+        "allow_byte_offset_tables": false,
+        "allow_word_pointer_tables": true,
+        "allow_indexed_lsl2_tables": true,
+        "override_ghidra_switch_models": true
+      },
+      "decompiler_guardian": {
+        "strictness": 2,
+        "suppress_vtable_false_positives": true,
+        "filter_orphan_tail_calls": true,
+        "retain_leaf_return_epilogues": true
+      }
+    },
+
+    "capcom": {
+      "_name": "Capcom / Flagship (Mega Man Battle Network & Minish Cap Architecture)",
+      "_signature_matches": ["AREE", "AE2E", "A6BE", "B4WE", "BRBE", "BZMP", "BZME", "MEGAMAN", "ROCKMAN", "ZELDA_MC", "Maker: 08"],
+      "code_horizon": {
+        "mode": "CONTINUOUS_PERMISSIVE",
+        "window_size_bytes": 2048,
+        "max_scan_mb": 8,
+        "streak_tolerance_kb": 32,
+        "illegal_opcode_max_ratio": 0.05,
+        "max_text_density_ratio": 0.65,
+        "min_prologues_per_window": 2,
+        "min_returns_per_window": 1,
+        "allow_inline_literal_pools": true,
+        "inline_data_tolerance_ratio": 0.12
+      },
+      "hardware_memory": {
+        "init_bios_vectors": true,
+        "map_ewram_size_kb": 256,
+        "map_iwram_size_kb": 32,
+        "resolve_literal_pools_to_ptrs": true,
+        "scan_iwram_fast_overlays": true,
+        "custom_overlay_addresses": ["0x08180000"]
+      },
+      "asset_hunter": {
+        "enable_acoustic_firms": true,
+        "enable_entropy_filter": true,
+        "shannon_entropy_cutoff": 7.82,
+        "isolate_m4a_music_banks": true,
+        "isolate_lz77_blocks": true,
+        "isolate_huffman_blocks": true,
+        "isolate_graphics_tiles_4bpp": true,
+        "isolate_graphics_tiles_8bpp": true
+      },
+      "text_hunter": {
+        "enable_text_hunter": true,
+        "charset_mode": "ASCII_CAPCOM",
+        "min_string_length": 4,
+        "min_letter_count": 2,
+        "min_printable_chars": 3,
+        "vowel_heuristic_enabled": true,
+        "max_repetition_streak": 4
+      },
+      "jump_tables": {
+        "enable_hunter": true,
+        "max_cases_per_table": 1500,
+        "min_cases_per_table": 2,
+        "allow_byte_offset_tables": true,
+        "allow_word_pointer_tables": true,
+        "allow_indexed_lsl2_tables": true,
+        "override_ghidra_switch_models": true
+      },
+      "decompiler_guardian": {
+        "strictness": 2,
+        "suppress_vtable_false_positives": true,
+        "filter_orphan_tail_calls": true,
+        "retain_leaf_return_epilogues": true
+      }
+    },
+
+    "camelot": {
+      "_name": "Camelot Software Planning (Golden Sun & Mario Sports Multi-Cluster Architecture)",
+      "_signature_matches": ["AGSE", "AGFE", "AGSJ", "AGFJ", "BMGE", "BM8E", "GOLDEN_SUN", "GOLDEN_SUN_B", "MARIO_GOLF", "MARIO_TENNIS"],
+      "code_horizon": {
+        "mode": "SEGMENTED_OVERLAYS",
+        "window_size_bytes": 2048,
+        "max_scan_mb": 16,
+        "streak_tolerance_kb": 64,
+        "illegal_opcode_max_ratio": 0.06,
+        "max_text_density_ratio": 0.65,
+        "min_prologues_per_window": 2,
+        "min_returns_per_window": 1,
+        "allow_inline_literal_pools": true,
+        "inline_data_tolerance_ratio": 0.14,
+        "allow_segmented_overlays": true,
+        "min_overlay_cluster_kb": 8
+      },
+      "hardware_memory": {
+        "init_bios_vectors": true,
+        "map_ewram_size_kb": 256,
+        "map_iwram_size_kb": 32,
+        "resolve_literal_pools_to_ptrs": true,
+        "scan_iwram_fast_overlays": true,
+        "custom_overlay_addresses": ["0x08300000", "0x08480000", "0x08680000", "0x087FC000"]
+      },
+      "asset_hunter": {
+        "enable_acoustic_firms": true,
+        "enable_entropy_filter": true,
+        "shannon_entropy_cutoff": 7.80,
+        "isolate_m4a_music_banks": true,
+        "isolate_lz77_blocks": true,
+        "isolate_huffman_blocks": true,
+        "isolate_graphics_tiles_4bpp": true,
+        "isolate_graphics_tiles_8bpp": true
+      },
+      "text_hunter": {
+        "enable_text_hunter": true,
+        "charset_mode": "ASCII_CAMELOT",
+        "min_string_length": 4,
+        "min_letter_count": 2,
+        "min_printable_chars": 3,
+        "vowel_heuristic_enabled": true,
+        "max_repetition_streak": 4
+      },
+      "jump_tables": {
+        "enable_hunter": true,
+        "max_cases_per_table": 2048,
+        "min_cases_per_table": 2,
+        "allow_byte_offset_tables": true,
+        "allow_word_pointer_tables": true,
+        "allow_indexed_lsl2_tables": true,
+        "allow_camelot_script_tables": true,
+        "override_ghidra_switch_models": true
+      },
+      "decompiler_guardian": {
+        "strictness": 2,
+        "suppress_vtable_false_positives": true,
+        "filter_orphan_tail_calls": false,
+        "retain_leaf_return_epilogues": true,
+        "camelot_scratch_reg_tolerance": true
+      }
+    },
+
+    "generic_gba": {
+      "_name": "Generic ARMv4T / Thumb Universal Fallback Architecture",
+      "_signature_matches": ["*"],
+      "code_horizon": {
+        "mode": "CONTINUOUS_PERMISSIVE",
+        "window_size_bytes": 2048,
+        "max_scan_mb": 8,
+        "streak_tolerance_kb": 16,
+        "illegal_opcode_max_ratio": 0.04,
+        "max_text_density_ratio": 0.60,
+        "min_prologues_per_window": 2,
+        "min_returns_per_window": 1,
+        "allow_inline_literal_pools": true,
+        "inline_data_tolerance_ratio": 0.10
+      },
+      "hardware_memory": {
+        "init_bios_vectors": true,
+        "map_ewram_size_kb": 256,
+        "map_iwram_size_kb": 32,
+        "resolve_literal_pools_to_ptrs": true,
+        "scan_iwram_fast_overlays": false,
+        "custom_overlay_addresses": []
+      },
+      "asset_hunter": {
+        "enable_acoustic_firms": true,
+        "enable_entropy_filter": true,
+        "shannon_entropy_cutoff": 7.85,
+        "isolate_m4a_music_banks": true,
+        "isolate_lz77_blocks": true,
+        "isolate_huffman_blocks": true,
+        "isolate_graphics_tiles_4bpp": true,
+        "isolate_graphics_tiles_8bpp": true
+      },
+      "text_hunter": {
+        "enable_text_hunter": true,
+        "charset_mode": "ASCII",
+        "min_string_length": 4,
+        "min_letter_count": 2,
+        "min_printable_chars": 3,
+        "vowel_heuristic_enabled": true,
+        "max_repetition_streak": 4
+      },
+      "jump_tables": {
+        "enable_hunter": true,
+        "max_cases_per_table": 1000,
+        "min_cases_per_table": 2,
+        "allow_byte_offset_tables": false,
+        "allow_word_pointer_tables": true,
+        "allow_indexed_lsl2_tables": true,
+        "override_ghidra_switch_models": true
+      },
+      "decompiler_guardian": {
+        "strictness": 2,
+        "suppress_vtable_false_positives": true,
+        "filter_orphan_tail_calls": true,
+        "retain_leaf_return_epilogues": true
+      }
+    }
+  }
+}
