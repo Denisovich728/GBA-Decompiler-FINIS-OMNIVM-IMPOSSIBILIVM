@@ -135,7 +135,7 @@ Cualquier juego, ROM o proyecto descompilado total o parcialmente utilizando **F
      *(Ejemplos: `FIO-DECOMP-HARVEST-MOON-FOMT`, `FIO-DECOMP-MEGA-MAN-BATTLE-NETWORK`, `FIO-DECOMP-POKEMON-EMERALD`, `FIO-DECOMP-GOLDEN-SUN`).*
 
 3. **Atribución y Créditos Obligatorios:**
-   - Debe incluirse de forma visible en la cabecera del `README.md` del repositorio descompilado y en su nombre de repositorio la atribución directa a este proyecto:
+   - Debe incluirse de forma visible en la cabecera del `README.md` del repositorio descompilado la atribución directa a este proyecto:
      ```markdown
      > Descompilado con [FIO Decomp - FINIS OMNIVM IMPOSSIBILIVM](https://github.com/Denisovich728/GBA-Decompiler-FINIS-OMNIVM-IMPOSSIBILIVM)
      > Licenciado bajo los términos de la GNU GPLv3.
