@@ -144,3 +144,20 @@ Cualquier juego, ROM o proyecto descompilado total o parcialmente utilizando **F
 4. **Reciprocidad GPLv3:**
    - Conforme a la licencia GPLv3, las herramientas, mejoras o adaptaciones al pipeline de descompilación deben permanecer de código abierto y bajo la misma licencia.
 
+---
+
+## 6. Licencias de Terceros y Componentes Integrados (Third-Party Licenses)
+
+Este proyecto integra y se apoya en tecnologías y motores de código abierto excepcionales, cuyos derechos de autor y licencias originales se respetan y reconocen íntegramente:
+
+1. **Ghidra Software Reverse Engineering Framework**
+   - **Autor:** National Security Agency (NSA) y la comunidad de Ghidra.
+   - **Licencia:** [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0) (Consulte [`licenses/LICENSE-GHIDRA-APACHE2.txt`](licenses/LICENSE-GHIDRA-APACHE2.txt)).
+   - **Uso en FIO Decomp:** Motor central de análisis estático, desensamblado cruzado ARM/Thumb y descompilación de P-Code a lenguaje C (`core/FinisOmnivmOrchestrator.java`).
+
+2. **mGBA (Game Boy Advance Emulator)**
+   - **Autor:** Jeffrey Pfau (endrift) y colaboradores del proyecto mGBA.
+   - **Licencia:** [Mozilla Public License Version 2.0 (MPL-2.0)](https://www.mozilla.org/en-US/MPL/2.0/) (Consulte [`licenses/LICENSE-MGBA-MPL2.txt`](licenses/LICENSE-MGBA-MPL2.txt)).
+   - **Uso en FIO Decomp:** Ejecución headless silenciosa (`emulator/mgba-sdl.exe`, `emulator/mGBA.exe`) para análisis dinámico, extracción en caliente de tablas de salto, interrupciones de hardware y telemetría de ejecución. El código fuente completo de mGBA está disponible en su repositorio oficial: [https://github.com/mgba-emu/mgba](https://github.com/mgba-emu/mgba).
+
+
