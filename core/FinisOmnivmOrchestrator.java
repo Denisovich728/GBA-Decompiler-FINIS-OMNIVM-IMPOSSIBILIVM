@@ -1862,6 +1862,13 @@ public class FinisOmnivmOrchestrator extends GhidraScript {
         dOpts.setMaxInstructions(250000);    // Permite descompilar funciones gigantes como el dispatcher
         dOpts.setMaxPayloadMBytes(100);      // Incrementa límite de payload de AST
         dOpts.setEliminateUnreachable(true); // Elimina bloques inalcanzables silenciosamente
+        dOpts.setInferConstantPointers(true); // Infiere punteros a constantes de memoria y literales
+        dOpts.setAnalyzeForLoops(true);       // Convierte bucles while/goto a for C estructurados
+        dOpts.setSplitStructures(false);      // NO descompone structs en variables sueltas (evita piStack_2c)
+        dOpts.setSplitPointers(false);        // NO separa punteros en offsets de pila individuales
+        dOpts.setSimplifyDoublePrecision(true);
+        dOpts.setIgnoreUnimplemented(true);
+        dOpts.setConventionPrint(false);      // Limpia ruido de convencion en firmas
         decomp.setOptions(dOpts);
         decomp.toggleSyntaxTree(true);
 
@@ -1934,9 +1941,8 @@ public class FinisOmnivmOrchestrator extends GhidraScript {
                 String[] hm  = hotmap.get(fo);
                 String hmStr = hm != null ? " [" + hm[1] + "/" + hm[2] + "]" : "";
 
-                // Limpieza estética rigurosa: eliminar cualquier bloque residual de comentarios WARNING
-                code = code.replaceAll("(?m)^\\s*/\\*\\s*WARNING:.*?\\*/\\r?\\n?", "");
-                code = code.replaceAll("(\\r?\\n){3,}", "\n\n").trim();
+                // Limpieza y sanitizacion rigurosa C89 (reprimenda a Ghidra)
+                code = sanitizeGhidraC(code, fn);
 
                 String block = "\n// --- " + name + " @ " + addrStr + hmStr + " ---\n" + code + "\n";
                 fAll.write(block);

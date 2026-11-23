@@ -302,6 +302,9 @@ def cc_compile(src, obj, mode, preset, c_code="", exclude_name=None):
                 libcpp_inc = ROOT / "refs" / "stanhash_fomt" / "tools" / "libagbc++"
                 if libcpp_inc.exists():
                     cpp_cmd.append("-I" + str(libcpp_inc))
+                stan_inc = ROOT / "refs" / "stanhash_fomt" / "include"
+                if stan_inc.exists():
+                    cpp_cmd.append("-I" + str(stan_inc))
                 cpp_cmd.extend(["-D__cplusplus", "-fno-exceptions"])
             cpp_cmd.extend([src.as_posix(), "-o", i_file.as_posix()])
             r_cpp = subprocess.run(
@@ -346,13 +349,34 @@ def cc_compile(src, obj, mode, preset, c_code="", exclude_name=None):
                 trail_align = "\n\t.align 2, 0\n"
             used_vts = sorted(set(re.findall(r"\bC_([0-9A-Fa-f]{8})\b", src_txt)))
             vt_decls = "\n".join(f"\t.equ __vt_10C_{v}, 0x{int(v, 16):08X}" for v in used_vts)
-            cpp_rt_decls = "\t.thumb_func\n\t.equ __builtin_delete, 0x08000608\n\t.thumb_func\n\t.equ __builtin_new, 0x080005D4"
+            used_dtors = sorted(set(re.findall(r"\bD_([0-9A-Fa-f]{8})\b", src_txt)))
+            dtor_decls = "\n".join(f"\t.thumb_func\n\t.equ _._10D_{d}, 0x{int(d, 16) & ~1:08X}" for d in used_dtors if f"func_{d}" != exclude_name)
+            rt_syms = [
+                ("__builtin_delete", 0x08000608),
+                ("__builtin_new", 0x080005D4),
+                ("__divsi3", 0x080D0EC8),
+                ("__modsi3", 0x080D0ED0),
+                ("__udivsi3", 0x080D0EDA),
+                ("__umodsi3", 0x080D0F4E),
+                ("malloc", 0x080D01F8),
+                ("free", 0x080D0260),
+                ("rand", 0x080D11E4),
+                ("memcmp", 0x080D3948),
+                ("memcpy", 0x080D3994),
+                ("memmove", 0x080D39F8),
+                ("memset", 0x080D3A84),
+                ("strcat", 0x080D3ADC),
+                ("strcpy", 0x080D3B28),
+                ("strlen", 0x080D3B78),
+            ]
+            rt_decls = "\n".join(f"\t.thumb_func\n\t.equ {sn}, 0x{sa:08X}" for sn, sa in rt_syms if sn != exclude_name)
             s_txt = (
                 s_raw
                 + trail_align
                 + call_via_decls
-                + ("\n" + cpp_rt_decls if is_cpp else "")
+                + "\n" + rt_decls
                 + ("\n" + vt_decls if vt_decls else "")
+                + ("\n" + dtor_decls if dtor_decls else "")
                 + ("\n" + thumb_decls if thumb_decls else "")
                 + ("\n" + glob_decls if glob_decls else "")
                 + "\n"
@@ -390,7 +414,7 @@ def cc_compile(src, obj, mode, preset, c_code="", exclude_name=None):
 
 
 def run(cmd, **kw):
-    kw.setdefault("timeout", 30)
+    kw.setdefault("timeout", 90)
     return subprocess.run(cmd, capture_output=True, text=True, **kw)
 
 

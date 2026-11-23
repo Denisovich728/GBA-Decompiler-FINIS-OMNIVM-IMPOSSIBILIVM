@@ -986,15 +986,34 @@ def verify_candidate(e, code, manifest, rom, presets=('agbcc_O2', 'agbcp_O2', 'a
                     if len(stripped) == 0:
                         exact = True
                 
-                if not exact and ('func_' in code or 'g_' in code or 'C_' in code or 'delete' in code):
-                    # Enlace local rapido para resolver ramas bl, vtables C_XXXXXXXX y simbolos globales g_XXXXXXXX
+                if not exact and any(k in code for k in ('func_', 'g_', 'C_', 'D_', 'delete', 'new', '/', '%', 'memcpy', 'memset', 'memmove', 'memcmp', 'strcpy', 'strlen', 'strcat', 'malloc', 'free', 'rand')):
+                    # Enlace local rapido para resolver ramas bl, vtables C_XXXXXXXX, dtors D_XXXXXXXX, runtime y simbolos globales g_XXXXXXXX
                     calls = re.findall(r'func_([0-9A-Fa-f]{8})', code)
                     gsyms = re.findall(r'g_([0-9A-Fa-f]{8})', code)
                     vtsyms = re.findall(r'\bC_([0-9A-Fa-f]{8})\b', code)
+                    dtsyms = re.findall(r'\bD_([0-9A-Fa-f]{8})\b', code)
                     sym_defs = [f"func_{c} = 0x{int(c, 16) & ~1:08X};" for c in set(calls) if f"func_{c}" != name]
                     sym_defs += [f"g_{g} = 0x{int(g, 16):08X};" for g in set(gsyms)]
                     sym_defs += [f"__vt_10C_{v} = 0x{int(v, 16):08X};" for v in set(vtsyms)]
-                    sym_defs += ["__builtin_delete = 0x08000608;", "__builtin_new = 0x080005D4;"]
+                    sym_defs += [f"_._10D_{d} = 0x{int(d, 16) & ~1:08X};" for d in set(dtsyms) if f"func_{d}" != name]
+                    sym_defs += [
+                        "__builtin_delete = 0x08000608;",
+                        "__builtin_new = 0x080005D4;",
+                        "__divsi3 = 0x080D0EC8;",
+                        "__modsi3 = 0x080D0ED0;",
+                        "__udivsi3 = 0x080D0EDA;",
+                        "__umodsi3 = 0x080D0F4E;",
+                        "malloc = 0x080D01F8;",
+                        "free = 0x080D0260;",
+                        "rand = 0x080D11E4;",
+                        "memcmp = 0x080D3948;",
+                        "memcpy = 0x080D3994;",
+                        "memmove = 0x080D39F8;",
+                        "memset = 0x080D3A84;",
+                        "strcat = 0x080D3ADC;",
+                        "strcpy = 0x080D3B28;",
+                        "strlen = 0x080D3B78;",
+                    ]
                     ld_txt = f"SECTIONS {{\n  . = 0x{e['addr']:08X};\n  .text : {{ *(.text) }}\n}}\n" + "\n".join(sym_defs) + "\n"
                     tmp_ld = ROOT / f"scratch_{name}.ld"
                     tmp_elf = ROOT / f"scratch_{name}.elf"
