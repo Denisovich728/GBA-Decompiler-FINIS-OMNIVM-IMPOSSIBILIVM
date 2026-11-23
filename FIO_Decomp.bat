@@ -102,14 +102,23 @@ echo.
 echo   [2] Solo Emulador
 echo       (mGBA Headless Tracer + Extraccion de Jump Tables Dinamicas a JSON)
 echo.
-echo   [3] Emulador Headless y Ghidra [RECOMENDADO]
+echo   [3] Emulador Headless y Ghidra
 echo       (mGBA 100%% silencioso en segundo plano + Ghidra Matrix Streaming en vivo)
+echo.
+echo   [4] Motor Determinista FSM Zero-Diff :: MODO MOTOR C (agbcc -O2/-O1)
+echo       (Sintesis Algebraica + FSM CFG + Verificacion Binaria 0-Diff en C89)
+echo.
+echo   [5] Motor Determinista FSM Zero-Diff :: MODO MOTOR C++ (agbcp / cc1plus)
+echo       (Compilador C++ GBA original + Detector de 299 Vtables, Destructores y SGI STL)
+echo.
+echo   [6] Motor Determinista FSM Zero-Diff :: DUAL AUTO C / C++ [VELOCIDAD RELAMPAGO]
+echo       (Evalua y comprueba codigo en Modo C y Modo C++ + Exporta Modulos y CMake)
 echo ------------------------------------------------------------------------------
-set "CHOICE_MODE=3"
-set /p "CHOICE_MODE=Elige el modo [1, 2 o 3] (Default: 3): "
+set "CHOICE_MODE=6"
+set /p "CHOICE_MODE=Elige el modo [1-6] (Default: 6): "
 
-if not "%CHOICE_MODE%"=="1" if not "%CHOICE_MODE%"=="2" if not "%CHOICE_MODE%"=="3" (
-    set "CHOICE_MODE=3"
+if not "%CHOICE_MODE%"=="1" if not "%CHOICE_MODE%"=="2" if not "%CHOICE_MODE%"=="3" if not "%CHOICE_MODE%"=="4" if not "%CHOICE_MODE%"=="5" if not "%CHOICE_MODE%"=="6" (
+    set "CHOICE_MODE=6"
 )
 echo [*] Modo seleccionado: [%CHOICE_MODE%]
 echo.

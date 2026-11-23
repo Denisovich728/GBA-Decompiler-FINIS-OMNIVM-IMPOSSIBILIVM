@@ -7,8 +7,8 @@ param(
     [Parameter(Mandatory=$true)]
     [string]$RomPath,
 
-    [ValidateSet("1", "2", "3")]
-    [string]$Mode = "3", # 1: Solo Ghidra, 2: Solo Emulador, 3: Emulador + Ghidra
+    [ValidateSet("1", "2", "3", "4", "5", "6")]
+    [string]$Mode = "6", # 1: Solo Ghidra, 2: Solo Emulador, 3: Emulador + Ghidra, 4: Motor FSM C (agbcc), 5: Motor FSM C++ (agbcp), 6: Dual Auto C/C++
 
     [ValidateSet("1", "2", "3")]
     [string]$GuardianStrictness = "2", # 1: Permisivo, 2: Equilibrado, 3: Estricto
@@ -24,6 +24,37 @@ $BRIDGE_DIR = "$BASE_DIR\bridge"
 $EMU_DIR = "$BASE_DIR\emulator"
 $PROJECTS_DIR = "$BASE_DIR\ghidra_projects"
 $OUTPUT_ROOT = "$BASE_DIR\output"
+
+# ---- MODO 4 / 5 / 6: MOTOR DETERMINISTA FSM & ALGEBRAICO ZERO-DIFF (MODO C / C++ / AUTO) ----
+if ($Mode -in @("4", "5", "6")) {
+    $langMode = switch ($Mode) { "4" { "c" } "5" { "cpp" } "6" { "auto" } }
+    $langDesc = switch ($Mode) {
+        "4" { "MODO MOTOR C (agbcc.exe -O2/-O1)" }
+        "5" { "MODO MOTOR C++ (agbcp.exe / cc1plus -O2 + Vtables/STL)" }
+        "6" { "MODO DUAL AUTO C & C++ (agbcc + agbcp + Exportador Modular CMake)" }
+    }
+    Write-Host ""
+    Write-Host "==============================================================================" -ForegroundColor Green
+    Write-Host "   FIO DECOMP :: MOTOR DETERMINISTA FSM ZERO-DIFF [$langDesc]" -ForegroundColor Green
+    Write-Host "==============================================================================" -ForegroundColor Green
+    $engineScript = "$BASE_DIR\engine\match\fsm_lifter.py"
+    if (-not (Test-Path $engineScript)) {
+        $engineScript = "J:\Laboratorio\FOMT-MATCH-ENGINE\tools\match\fsm_lifter.py"
+    }
+    $matchRoot = "J:\Laboratorio\FOMT-MATCH-ENGINE"
+    Push-Location $matchRoot
+    try {
+        python $engineScript --lang $langMode --workers 8
+        if ($Mode -eq "6") {
+            Write-Host "[*] Exportando modulos C/C++ consolidados y verificando ROM 100% Zero-Diff..." -ForegroundColor Cyan
+            python "$matchRoot\tools\match\modular_exporter.py" "J:\Laboratorio\FIO-DECOMP-HMFOMT"
+            python "$matchRoot\tools\match\build_rom.py"
+        }
+    } finally {
+        Pop-Location
+    }
+    exit 0
+}
 
 # ---- 1. DETECCION DE GHIDRA ----
 if (-not $GhidraHome) {
