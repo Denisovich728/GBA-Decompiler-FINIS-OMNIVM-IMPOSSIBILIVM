@@ -313,11 +313,11 @@ def cc_compile(src, obj, mode, preset, c_code="", exclude_name=None):
             if is_cpp and i_file.exists():
                 i_txt = i_file.read_text(encoding="utf-8", errors="replace")
                 i_txt = i_txt.replace("typedef u32 bool;", "")
+                i_lines = [l for l in i_txt.splitlines() if not l.strip().startswith("#")]
                 if 'extern "C"' not in i_txt:
-                    i_lines = [l for l in i_txt.splitlines() if not l.strip().startswith("#")]
                     i_file.write_text('extern "C" {\n' + "\n".join(i_lines) + '\n}\n', encoding="utf-8")
                 else:
-                    i_file.write_text(i_txt, encoding="utf-8")
+                    i_file.write_text("\n".join(i_lines) + "\n", encoding="utf-8")
             r_cc1 = subprocess.run(
                 [str(cc1_exe)] + list(flags) + [i_file.name, "-o", s_file.name],
                 cwd=str(i_file.parent),
@@ -333,12 +333,30 @@ def cc_compile(src, obj, mode, preset, c_code="", exclude_name=None):
             call_via_regs = ["r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "sl", "fp", "ip", "sp", "lr"]
             call_via_decls = "\n".join(f"\t.thumb_func\n\t.equ _call_via_{rg}, 0x{0x080D390C + idx * 4:08X}" for idx, rg in enumerate(call_via_regs))
             s_raw = s_file.read_text(encoding="utf-8", errors="replace")
+            if is_cpp and ".gnu.linkonce." in s_raw:
+                alias_lines = [l for l in s_raw.splitlines() if exclude_name and exclude_name in l]
+                s_raw = re.split(r"\n\s*\.section\s+\.gnu\.linkonce\.", s_raw)[0]
+                for al_line in alias_lines:
+                    if al_line not in s_raw:
+                        s_raw += "\n" + al_line
             if ".macro bx reg" in s_raw:
                 s_raw = s_raw.replace("\t.align\t2, 0", "\t.align\t1, 0", 1)
                 trail_align = "\n"
             else:
                 trail_align = "\n\t.align 2, 0\n"
-            s_txt = s_raw + trail_align + call_via_decls + ("\n" + thumb_decls if thumb_decls else "") + ("\n" + glob_decls if glob_decls else "") + "\n"
+            used_vts = sorted(set(re.findall(r"\bC_([0-9A-Fa-f]{8})\b", src_txt)))
+            vt_decls = "\n".join(f"\t.equ __vt_10C_{v}, 0x{int(v, 16):08X}" for v in used_vts)
+            cpp_rt_decls = "\t.thumb_func\n\t.equ __builtin_delete, 0x08000608\n\t.thumb_func\n\t.equ __builtin_new, 0x080005D4"
+            s_txt = (
+                s_raw
+                + trail_align
+                + call_via_decls
+                + ("\n" + cpp_rt_decls if is_cpp else "")
+                + ("\n" + vt_decls if vt_decls else "")
+                + ("\n" + thumb_decls if thumb_decls else "")
+                + ("\n" + glob_decls if glob_decls else "")
+                + "\n"
+            )
             s_file.write_text(s_txt, encoding="utf-8")
             r_as = subprocess.run(
                 [as_bin, "-mcpu=arm7tdmi", "-mthumb-interwork", str(s_file), "-o", str(obj)],

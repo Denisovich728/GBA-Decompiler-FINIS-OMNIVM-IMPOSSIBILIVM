@@ -220,12 +220,20 @@ def build():
         for e in manifest
         if state.get(e["name"], {}).get("status") == "matched" and e["name"] not in covered_by_stan
     )
-    ld_lines = []
+    ld_lines = [
+        "PROVIDE(__builtin_delete = 0x08000609);",
+        "PROVIDE(__builtin_new = 0x080005D5);",
+    ]
     for gn in sorted(set(re.findall(r"\bg_([0-9A-Fa-f]{8})\b", extra))):
         gname = f"g_{gn}"
         if gname not in known_syms:
             known_syms.add(gname)
             ld_lines.append(f"PROVIDE({gname} = 0x{int(gn, 16):08X});")
+    for vn in sorted(set(re.findall(r"\bC_([0-9A-Fa-f]{8})\b", extra))):
+        vname = f"__vt_10C_{vn}"
+        if vname not in known_syms:
+            known_syms.add(vname)
+            ld_lines.append(f"PROVIDE({vname} = 0x{int(vn, 16):08X});")
     (BUILD_DIR / "symbols.ld").write_text("\n".join(ld_lines) + "\n", encoding="utf-8")
 
     c_objs_set = {str(sym_o_path)}
