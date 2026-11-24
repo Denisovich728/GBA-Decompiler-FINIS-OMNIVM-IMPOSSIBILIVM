@@ -284,6 +284,55 @@ def ads_env():
     return env
 
 
+def _try_fast_preprocess(raw_src: str, is_cpp: bool):
+    """Preprocesado ligero en Python cuando el fuente no usa #include ni macros complejas."""
+    if re.search(r"#\s*include\b", raw_src):
+        return None
+    if re.search(r"\b(?:CONCAT\d+|SUB\d+|ZEXT\d+|SEXT\d+|BOOL)\b", raw_src):
+        return None
+    no_comments = re.sub(r"/\*.*?\*/", "", raw_src, flags=re.S)
+    no_comments = re.sub(r"//.*", "", no_comments)
+    out_lines = []
+    skip_depth = 0
+    for ln in no_comments.splitlines():
+        st = ln.strip()
+        if st.startswith("#"):
+            if re.match(r"#\s*ifndef\s+__cplusplus\s*$", st):
+                if is_cpp:
+                    skip_depth += 1
+                continue
+            if re.match(r"#\s*endif\b", st):
+                if skip_depth > 0:
+                    skip_depth -= 1
+                continue
+            if skip_depth > 0:
+                continue
+            if re.match(r"#\s*define\s+(?:true|false|TRUE|FALSE|NULL)\b", st):
+                continue
+            return None
+        if skip_depth > 0:
+            continue
+        out_lines.append(ln)
+    if skip_depth != 0:
+        return None
+    txt = "\n".join(out_lines)
+    txt = re.sub(r"\bNULL\b", "0", txt)
+    if not is_cpp:
+        txt = re.sub(r"\btrue\b", "1", txt)
+        txt = re.sub(r"\bfalse\b", "0", txt)
+    txt = re.sub(r"\bTRUE\b", "1", txt)
+    txt = re.sub(r"\bFALSE\b", "0", txt)
+    if is_cpp:
+        txt = txt.replace("typedef u32 bool;", "")
+        if 'extern "C"' not in txt:
+            txt = 'extern "C" {\n' + txt + '\n}\n'
+        else:
+            txt = txt + "\n"
+    else:
+        txt = txt + "\n"
+    return txt
+
+
 def cc_compile(src, obj, mode, preset, c_code="", exclude_name=None):
     """Compila src -> obj (ELF ARM) con agbcc/old_agbcc (SDK Nintendo GBA) o ARM ADS 1.2."""
     verify_ads_compilers()
@@ -291,36 +340,41 @@ def cc_compile(src, obj, mode, preset, c_code="", exclude_name=None):
         cc1_exe, flags = AGBCC_PRESETS[preset]
         if not cc1_exe.exists():
             return subprocess.CompletedProcess(args=[str(cc1_exe)], returncode=1, stdout="", stderr="agbcc.exe no encontrado")
-        cpp_bin = find_tool("cpp")
         as_bin = find_tool("as")
         i_file = obj.with_suffix(".i")
         s_file = obj.with_suffix(".s")
         try:
             is_cpp = preset.startswith("agbcp")
-            cpp_cmd = [cpp_bin, "-nostdinc", "-undef", "-I" + str(AGBCC_DIR / "include"), "-I" + str(ROOT / "include")]
-            if is_cpp:
-                libcpp_inc = ROOT / "refs" / "stanhash_fomt" / "tools" / "libagbc++"
-                if libcpp_inc.exists():
-                    cpp_cmd.append("-I" + str(libcpp_inc))
-                stan_inc = ROOT / "refs" / "stanhash_fomt" / "include"
-                if stan_inc.exists():
-                    cpp_cmd.append("-I" + str(stan_inc))
-                cpp_cmd.extend(["-D__cplusplus", "-fno-exceptions"])
-            cpp_cmd.extend([src.as_posix(), "-o", i_file.as_posix()])
-            r_cpp = subprocess.run(
-                cpp_cmd,
-                capture_output=True, text=True, timeout=15,
-            )
-            if r_cpp.returncode != 0:
-                return r_cpp
-            if is_cpp and i_file.exists():
-                i_txt = i_file.read_text(encoding="utf-8", errors="replace")
-                i_txt = i_txt.replace("typedef u32 bool;", "")
-                i_lines = [l for l in i_txt.splitlines() if not l.strip().startswith("#")]
-                if 'extern "C"' not in i_txt:
-                    i_file.write_text('extern "C" {\n' + "\n".join(i_lines) + '\n}\n', encoding="utf-8")
-                else:
-                    i_file.write_text("\n".join(i_lines) + "\n", encoding="utf-8")
+            raw_src = c_code or src.read_text(encoding="utf-8", errors="replace")
+            fast_i = _try_fast_preprocess(raw_src, is_cpp)
+            if fast_i is not None:
+                i_file.write_text(fast_i, encoding="utf-8")
+            else:
+                cpp_bin = find_tool("cpp")
+                cpp_cmd = [cpp_bin, "-nostdinc", "-undef", "-I" + str(AGBCC_DIR / "include"), "-I" + str(ROOT / "include")]
+                if is_cpp:
+                    libcpp_inc = ROOT / "refs" / "stanhash_fomt" / "tools" / "libagbc++"
+                    if libcpp_inc.exists():
+                        cpp_cmd.append("-I" + str(libcpp_inc))
+                    stan_inc = ROOT / "refs" / "stanhash_fomt" / "include"
+                    if stan_inc.exists():
+                        cpp_cmd.append("-I" + str(stan_inc))
+                    cpp_cmd.extend(["-D__cplusplus", "-fno-exceptions"])
+                cpp_cmd.extend([src.as_posix(), "-o", i_file.as_posix()])
+                r_cpp = subprocess.run(
+                    cpp_cmd,
+                    capture_output=True, text=True, timeout=15,
+                )
+                if r_cpp.returncode != 0:
+                    return r_cpp
+                if is_cpp and i_file.exists():
+                    i_txt = i_file.read_text(encoding="utf-8", errors="replace")
+                    i_txt = i_txt.replace("typedef u32 bool;", "")
+                    i_lines = [l for l in i_txt.splitlines() if not l.strip().startswith("#")]
+                    if 'extern "C"' not in i_txt:
+                        i_file.write_text('extern "C" {\n' + "\n".join(i_lines) + '\n}\n', encoding="utf-8")
+                    else:
+                        i_file.write_text("\n".join(i_lines) + "\n", encoding="utf-8")
             r_cc1 = subprocess.run(
                 [str(cc1_exe)] + list(flags) + [i_file.name, "-o", s_file.name],
                 cwd=str(i_file.parent),
@@ -328,7 +382,7 @@ def cc_compile(src, obj, mode, preset, c_code="", exclude_name=None):
             )
             if r_cc1.returncode != 0 or not s_file.exists():
                 return r_cc1
-            src_txt = c_code or src.read_text(encoding="utf-8", errors="replace")
+            src_txt = raw_src
             used_funcs = sorted(set(re.findall(r"\bfunc_[0-9A-F]{8}\b", src_txt)) - ({exclude_name} if exclude_name else set()))
             used_globs = sorted(set(re.findall(r"\bg_[0-9A-Fa-f]{8}\b", src_txt)))
             thumb_decls = "\n".join(f"\t.thumb_func\n\t.equ {fn}, 0x{int(fn[5:], 16) & ~1:08X}" for fn in used_funcs)
