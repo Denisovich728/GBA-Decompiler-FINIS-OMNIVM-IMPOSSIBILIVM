@@ -13,11 +13,15 @@ Artefactos generados:
 """
 import argparse
 import collections
+import csv
 import json
 import re
+import struct
 import subprocess
 import sys
 from pathlib import Path
+
+from capstone import Cs, CS_ARCH_ARM, CS_MODE_THUMB
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools" / "match"))
@@ -32,7 +36,34 @@ except Exception:
     pass
 
 STAN_DIR = ROOT / "refs" / "stanhash_fomt"
+STUDIO_REF_DIR = ROOT / "refs" / "fomt_studio"
 FIO_DIR = Path(r"J:\Laboratorio\FIO-DECOMP-HMFOMT")
+
+STUDIO_TABLE_RANGES = [
+    (0x080F89D4, 0x080F9E98, "ScriptVM"),
+    (0x080FB200, 0x080FB900, "IntroSequence"),
+    (0x08104100, 0x08104400, "NpcSystem"),
+    (0x08106A00, 0x08107000, "MapEngine"),
+    (0x081116A8, 0x08111B90, "ToolData"),
+    (0x08111B90, 0x08112200, "FoodData"),
+    (0x080EAB0C, 0x080EAED0, "ToolData"),
+    (0x080EDCD8, 0x080EE788, "FoodData"),
+    (0x080EFED4, 0x080F0348, "ItemData"),
+    (0x0852D980, 0x0858B900, "PortraitEngine"),
+    (0x0858BA00, 0x08670000, "SpriteAnimEngine"),
+    (0x020025D8, 0x02004200, "SaveGameState"),
+]
+
+WEAK_DOMAINS = {
+    "code_0803EE94",
+    "code_809E804",
+    "code_linkonce",
+    "code_entities_08034CEC",
+    "code_0803A8A4",
+    "code_actor_0809BFE8",
+    "code_0800BC58",
+    "code_entities_080320DC",
+}
 
 BIOS_SWI = {
     0x00: "BIOS_SoftReset",
@@ -415,6 +446,106 @@ def solve_symbols():
                 source[addr] = "runtime_bios"
                 confidence[addr] = "EXACT"
 
+    # 2b. FoMT Studio ScriptVM Dispatch Table (0x03F900 inside func_0803F8DC, 328 casos) + Fomt_Lib.csv
+    if 0x0803F8DC in by_addr:
+        domain[0x0803F8DC] = "ScriptVM"
+        method[0x0803F8DC] = "ExecuteOpcode"
+        source[0x0803F8DC] = "fomt_studio_dispatch"
+        confidence[0x0803F8DC] = "EXACT"
+
+    fomt_lib_path = STUDIO_REF_DIR / "Fomt_Lib.csv"
+    if fomt_lib_path.exists():
+        lib_map = {}
+        with open(fomt_lib_path, "r", encoding="utf-8", errors="replace") as lf:
+            rd = csv.reader(lf)
+            next(rd, None)
+            for row in rd:
+                if len(row) >= 4:
+                    try:
+                        cid = int(row[2].strip())
+                    except ValueError:
+                        continue
+                    lib_map[cid] = row[3].strip()
+
+        md_vm = Cs(CS_ARCH_ARM, CS_MODE_THUMB)
+        md_vm.detail = True
+        ptrs = [(cid, struct.unpack_from("<I", rom, 0x03F900 + cid * 4)[0] & ~1) for cid in range(328)]
+        sorted_targets = sorted(set(p for _, p in ptrs if 0x0803F900 < p < 0x08045584))
+
+        # Pasada 1: contar en cuantos casos aparece cada bl para filtrar helpers compartidos de lectura de args
+        case_bls = {}
+        callee_case_cnt = collections.Counter()
+        for cid, p in ptrs:
+            if p <= 0x0803F900 or cid not in lib_map:
+                continue
+            nx = next((t for t in sorted_targets if t > p), 0x08045584)
+            off = p - common.ROM_BASE
+            sz = min(max(nx - p, 0), 256)
+            bls = [
+                i.operands[0].imm & ~1
+                for i in md_vm.disasm(rom[off:off + sz], p)
+                if i.mnemonic == "bl" and (i.operands[0].imm & ~1) in by_addr
+            ]
+            case_bls[cid] = bls
+            for tgt in set(bls):
+                callee_case_cnt[tgt] += 1
+
+        shared_helpers = {
+            tgt for tgt, cnt in callee_case_cnt.items()
+            if cnt > 6 and tgt not in RUNTIME_SYMS and confidence.get(tgt) != "EXACT"
+        }
+        for tgt in shared_helpers:
+            if domain.get(tgt) is None or domain.get(tgt) in WEAK_DOMAINS:
+                domain[tgt] = "ScriptVM"
+            if tgt not in method:
+                method[tgt] = f"VmHelper_{tgt:08X}"
+                source[tgt] = "fomt_studio_dispatch"
+                confidence[tgt] = "HIGH"
+
+        # Pasada 2: mapear Fomt_Lib.csv -> ultimo bl no-helper de cada caso
+        action_cids = collections.defaultdict(list)
+        for cid, bls in case_bls.items():
+            cand_bls = [t for t in bls if t not in shared_helpers and t not in RUNTIME_SYMS]
+            if not cand_bls:
+                continue
+            tgt = cand_bls[-1]
+            action_cids[tgt].append(cid)
+
+        for tgt, cids in action_cids.items():
+            if confidence.get(tgt) == "EXACT":
+                continue
+            # Elegir el primer nombre no generico de Fomt_Lib, o el primero disponible
+            names = [lib_map[c] for c in cids]
+            best_name = next((n for n in names if not re.match(r"^(?:Proc|Func)[0-9A-Fa-f]{3}$", n)), names[0])
+            is_gen_lib = bool(re.match(r"^(?:Proc|Func)[0-9A-Fa-f]{3}$", best_name))
+            if domain.get(tgt) is None or domain.get(tgt) in WEAK_DOMAINS:
+                domain[tgt] = "ScriptVM"
+            if tgt not in method or re.match(r"^(?:Proc|Func)[0-9A-Fa-f]{3}$", method.get(tgt, "")):
+                method[tgt] = sanitize_ident(best_name)
+                source[tgt] = "fomt_studio_dispatch"
+                confidence[tgt] = "EXACT" if (len(cids) == 1 and not is_gen_lib) else "HIGH"
+
+    # 2c. FoMT Studio ROM/RAM Table Ranges (sobreescriben None o WEAK_DOMAINS)
+    for e in manifest:
+        addr = e["addr"]
+        cur_d = domain.get(addr)
+        if cur_d is not None and cur_d not in WEAK_DOMAINS:
+            continue
+        pwords = [v for _, v in sorted(fsm_by_addr[addr]["pool_words"].items())]
+        matched_dom = None
+        for pw in pwords:
+            for lo, hi, t_dom in STUDIO_TABLE_RANGES:
+                if lo <= pw < hi:
+                    matched_dom = t_dom
+                    break
+            if matched_dom:
+                break
+        if matched_dom:
+            domain[addr] = matched_dom
+            source[addr] = "fomt_studio_table"
+            if confidence.get(addr) != "EXACT":
+                confidence[addr] = "HIGH"
+
     # 3. Algebra de Vtables: herencia V_der -> V_base y metodos Ctor / Dtor / Create / VFunc
     vt_class = dict(elf_vts)  # vt_addr -> class_name
     vt_parent = {}            # vt_der -> vt_base
@@ -437,8 +568,10 @@ def solve_symbols():
                 vt_class[v_der] = f"{base_cls}_{v_der & 0xFFFF:04X}"
     for v_addr in all_vt_addrs:
         if v_addr not in vt_class:
-            # Intentar tomar dominio de la funcion que referencia esta vtable
-            ref_doms = [domain[a] for a, vlist in vt_refs.items() if v_addr in vlist and a in domain]
+            # Intentar tomar dominio fuerte de la funcion que referencia esta vtable
+            ref_doms = [domain[a] for a, vlist in vt_refs.items() if v_addr in vlist and a in domain and domain[a] not in WEAK_DOMAINS]
+            if not ref_doms:
+                ref_doms = [domain[a] for a, vlist in vt_refs.items() if v_addr in vlist and a in domain]
             if ref_doms:
                 base_d = collections.Counter(ref_doms).most_common(1)[0][0]
                 vt_class[v_addr] = f"{base_d}_{v_addr & 0xFFFF:04X}"
@@ -464,7 +597,7 @@ def solve_symbols():
         cls = vt_class.get(v0)
         if not cls:
             continue
-        if addr not in domain:
+        if addr not in domain or domain[addr] in WEAK_DOMAINS:
             domain[addr] = cls
             source[addr] = "vtable_algebra"
             confidence[addr] = "HIGH"
@@ -495,7 +628,7 @@ def solve_symbols():
             if fn_addr not in by_addr:
                 continue
             # Evitar renombrar __pure_virtual / nullsubs globales compartidas por muchas vtables
-            if fn_addr not in domain:
+            if fn_addr not in domain or domain[fn_addr] in WEAK_DOMAINS:
                 domain[fn_addr] = cls
                 source[fn_addr] = "vtable_algebra"
                 confidence[fn_addr] = "HIGH"
@@ -507,7 +640,7 @@ def solve_symbols():
 
     # 4. Propagacion Algebraica en Punto Fijo ("despejar X con Y")
     IGNORE_CALLERS = {0x0800018C}  # AgbMain llama a inicializadores globales de muchos subsistemas
-    IGNORE_DOMAINS = {"Runtime", "CppRuntime", "LibC", "LibGcc", "BIOS", "Core", "System"}
+    IGNORE_DOMAINS = {"Runtime", "CppRuntime", "LibC", "LibGcc", "BIOS", "Core", "System"} | WEAK_DOMAINS
 
     sorted_entries = sorted(manifest, key=lambda x: x["addr"])
     addr_order = [e["addr"] for e in sorted_entries]
@@ -517,7 +650,8 @@ def solve_symbols():
         # Regla 1 & 2 & 3: Grafo de llamadas
         for e in sorted_entries:
             addr = e["addr"]
-            if addr in domain and addr in method:
+            cur_dom = domain.get(addr)
+            if cur_dom and cur_dom not in WEAK_DOMAINS and addr in method:
                 continue
 
             cs = [c for c in callees.get(addr, []) if c != addr and domain.get(c) not in IGNORE_DOMAINS]
@@ -526,7 +660,8 @@ def solve_symbols():
             # Wrapper 1-a-1 exacto: X no tiene metodo, tiene exactamente 1 callee no-runtime con metodo conocido y size <= 72B
             if addr not in method and e["size"] <= 72 and len(cs) == 1 and cs[0] in method:
                 y = cs[0]
-                domain[addr] = domain.get(addr) or domain[y]
+                if cur_dom is None or cur_dom in WEAK_DOMAINS:
+                    domain[addr] = domain[y]
                 prefix = "AutoPtrWrap" if 0x080D3914 in callees.get(addr, []) else "Wrap"
                 method[addr] = f"{prefix}_{method[y]}"
                 source[addr] = "graph_algebra"
@@ -534,9 +669,9 @@ def solve_symbols():
                 changed += 1
                 continue
 
-            if addr not in domain:
-                # Callees homogeneos en dominio
-                c_doms = {domain[c] for c in cs if c in domain}
+            if cur_dom is None or cur_dom in WEAK_DOMAINS:
+                # Callees homogeneos en dominio fuerte
+                c_doms = {domain[c] for c in cs if c in domain and domain[c] not in IGNORE_DOMAINS}
                 if len(c_doms) == 1:
                     domain[addr] = next(iter(c_doms))
                     source[addr] = "graph_algebra"
@@ -544,8 +679,8 @@ def solve_symbols():
                     changed += 1
                     continue
 
-                # Callers homogeneos en dominio
-                r_doms = {domain[r] for r in rs if r in domain}
+                # Callers homogeneos en dominio fuerte
+                r_doms = {domain[r] for r in rs if r in domain and domain[r] not in IGNORE_DOMAINS}
                 if len(r_doms) == 1 and len(rs) >= 1:
                     domain[addr] = next(iter(r_doms))
                     source[addr] = "graph_algebra"
@@ -556,7 +691,8 @@ def solve_symbols():
         # Regla 4: Interpolacion de Unidad de Traduccion (funciones contiguas del mismo .cc)
         for idx in range(1, len(addr_order) - 1):
             a_cur = addr_order[idx]
-            if a_cur in domain:
+            cur_dom = domain.get(a_cur)
+            if cur_dom and cur_dom not in WEAK_DOMAINS:
                 continue
             # Buscar vecino izquierdo y derecho con dominio en una ventana de 6 funciones / 0x800 bytes
             left_dom, right_dom = None, None
@@ -670,6 +806,8 @@ def solve_symbols():
             "",
             f"- **Funciones analizadas:** {len(symbol_map)}",
             f"- **Anclas exactas StanHash ELF (`stanhash_elf`):** {stats['stanhash_elf']}",
+            f"- **Despacho ScriptVM FoMT Studio (`fomt_studio_dispatch`):** {stats['fomt_studio_dispatch']}",
+            f"- **Tablas ROM/RAM FoMT Studio (`fomt_studio_table`):** {stats['fomt_studio_table']}",
             f"- **Clases heredadas en mapa StanHash (`stanhash_elf_class` + `stanhash_map_tu`):** {stats['stanhash_elf_class'] + stats['stanhash_map_tu']}",
             f"- **Runtime / GBA BIOS (`runtime_bios`):** {stats['runtime_bios']}",
             f"- **Algebra de Vtables C++ (`vtable_algebra`):** {stats['vtable_algebra']}",
@@ -698,6 +836,8 @@ def solve_symbols():
     print("=" * 70)
     print(f"Total funciones: {len(symbol_map)}")
     print(f"  - StanHash ELF directo    : {stats['stanhash_elf']}")
+    print(f"  - FoMT Studio Dispatch VM : {stats['fomt_studio_dispatch']}")
+    print(f"  - FoMT Studio Tablas      : {stats['fomt_studio_table']}")
     print(f"  - StanHash Clase/TU map   : {stats['stanhash_elf_class'] + stats['stanhash_map_tu']}")
     print(f"  - Runtime / GBA BIOS      : {stats['runtime_bios']}")
     print(f"  - Algebra de Vtables C++  : {stats['vtable_algebra']}")
